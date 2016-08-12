@@ -18,7 +18,6 @@ author:
     ins: N. Harper
     name: Nick Harper
     organization: Google Inc.
-    country: USA
     email: nharper@google.com
 
 normative:
@@ -128,32 +127,48 @@ Where HKDF-Expand-Label is the same function defined in {{I-D.ietf-tls-tls13}}.
 TokenBinding signature definition
 ---------------------------------
 
-In {{I-D.ietf-tokbind-protocol}}, the signature field of the TokenBinding struct
-is defined to be the signature of the EKM value using the corresponding token
-binding key. This document changes that signature to be over a value
-exporter_value dependent on the state of the TLS handshake.
+In {{I-D.ietf-tokbind-protocol}}, the signature field of the TokenBinding
+struct is defined to be the signature of the EKM value using the corresponding
+token binding key. This document changes that signature to be over one of two
+possible exporter values.
 
-If the handshake has not completed, then the exporter_value is the output of
-the 0-RTT exporter defined above, and once the handshake has completed, it is
-the output of the exporter defined in section 7.3.3 of {{I-D.ietf-tls-tls13}}.
-In both cases, the exporter is called with the following input values:
+The first exporter value is the output of the 0-RTT exporter defined above,
+which can be used in any TokenBindingMessage. The second is the exporter
+defined in section 7.3.3 of {{I-D.ietf-tls-tls13}}, which can only be used
+once the handshake is complete. In both cases, the exporter is called with the
+following input values:
 
 - Label: The ASCII string “EXPORTER-Token-Binding” with no terminating NUL.
 - Context value: NULL (no application context supplied).
 - Length: 32 bytes.
 
-These are the same values as defined in section 3 of {{I-D.ietf-tokbind-protocol}}.
+These are the same values as defined in section 3 of
+{{I-D.ietf-tokbind-protocol}}.
+
+A client chooses which exporter to use for generating a TokenBindingMessage. A
+client which is not sending any 0-RTT data on a connection MUST use the
+exporter defined in {{I-D.ietf-tls-tls13}} for all TokenBindingMessages on
+that connection so that it is compatible with I-D.ietf-tokbind-protocol-08. A
+client that sends a TokenBindingMessage in 0-RTT data must use the 0-RTT
+exporter defined in this document since the one in {{I-D.ietf-tls-tls13}}
+cannot be used at that time. On a connection where 0-RTT data was sent, a
+client may continue to use the 0-RTT exporter for TokenBindingMessages sent
+after the TLS handshake has completed. This allows a client to re-send 0-RTT
+messages without needing to rewrite the TokenBindingMessage therein.
+
+Since it is at the client’s discretion which value gets signed (for any
+TokenBindingMessage on a connection that had early data received by the
+server), the server must check both values.
 
 Negotiation TLS extension
 -------------------------
 
 The Token Binding negotiation TLS extension ({{I-D.ietf-tokbind-negotiation}})
-gains new meaning in 0-RTT handshake. If Token Binding is negotiated, the first
-TokenBindingKeyParameters in the TokenBindingParameters struct MUST be the same
-parameters that were negotiated in the session that is being resumed. Any
-TokenBindingMessage that is sent in 0-RTT data MUST use a TokenBindingID with
-the same TokenBindingKeyParameters that is in the first position of the
-key_parameters_list in TokenBindingParameters.
+gains new meaning in 0-RTT handshake.  If both the EarlyDataIndication
+extension and the token binding negotiation extension are sent in the same
+ClientHello, then the Token Binding negotiation extension MUST contain a single
+entry in its key_parameters_list. This key parameter must be the same one that
+was negotiated in the session that is being resumed.
 
 In the ServerHello, the server may choose to negotiate the same key type that
 the client indicated for 0-RTT data, it may negotiate a different key type
@@ -162,12 +177,11 @@ Token Binding. If the server negotiates Token Binding, it must either support
 the key type that the client indicated for 0-RTT data (and send that key type
 in its extension), or it must reject the 0-RTT data.
 
-A client may send the Token Binding negotiation TLS extension in a ClientHello
-without including a TokenBindingMessage in the application layer data if the
-client does not have a key to use for that connection. This is to allow a
-client to attempt to negotiate Token Binding on resumption with a server that
-previously didn’t support Token Binding without the client having to
-speculatively create a keypair and send a TokenBindingMessage.
+A server that supports Token Binding but not 0-RTT TokenBindingMessages MUST
+NOT issue a NewSessionTicket with the allow_early_data flag set. If it does, a
+client might try to negotiate both Token Binding and early data, and when the
+early data gets rejected, the client might resend the early data with the same
+TokenBindingMessage that used the 0-RTT exporter.
 
 Implementation challenges
 =========================
@@ -191,44 +205,71 @@ The client could also send 0-RTT data without a TokenBindingMessage, but
 negotiate token binding in the handshake and send a TokenBindingMessage in
 subsequent application data.
 
+HTTP2 allows for requests to different domains to share the same TLS connection
+if the SAN of the cert covers those domains. If one.example.com supports 0-RTT
+and Token Binding, but two.example.com only supports Token Binding as defined
+in I-D.ietf-tokbind-protocol-08, those servers cannot share a cert and use
+HTTP2.
 
 Alternatives considered
 =======================
 
+Require exporter used to match the data it's sent in
+----------------------------------------------------
+
+Instead of allowing the client to use whichever exporter is more convenient,
+the client could be required to use the 0-RTT exporter only when the
+TokenBindingMessage is sent in 0-RTT data, and use the 1-RTT exporter when the
+TokenBindingMessage is sent in 1-RTT data. This approach makes implementations
+more difficult. Both the client and the server have to know when the switch
+from 0-RTT to 1-RTT occurred (which could potentially be in the middle of a
+request), and the client has to rewrite requests if initially sent over 0-RTT
+and then rejected and re-sent 1-RTT.
+
 Ratcheting exporters
 --------------------
 
-To avoid the synchronization issue between application data and knowledge of
-whether the data is sent 0-RTT or 1-RTT, a ratcheting mechanism could be used
-by the server for verifying token binding signatures. In this mode, the server
-attempts to verify the token binding message with both the 0-RTT and 1-RTT
-exporter, but once it has seen a token binding message that verifies with the
-1-RTT exporter, it ratchets up to only try verifying with the 1-RTT exporter.
-At the time the client generates its TokenBindingMessage, it can use whichever
-exporter matches the current state of the TLS handshake.
+To avoid the synchronization issue in the option above, a ratcheting mechanism
+could be used by the server for verifying token binding signatures. In this
+mode, the server attempts to verify the token binding message with both the
+0-RTT and 1-RTT exporter, but once it has seen a token binding message that
+verifies with the 1-RTT exporter, it ratchets up to only try verifying with the
+1-RTT exporter. At the time the client generates its TokenBindingMessage, it
+can use whichever exporter matches the current state of the TLS handshake.
 
-This ratcheting mechanism needs to be done per application layer stream, and
-not per TLS connection. Consider for example multiple http2 streams on a single
-TLS connection. If there are multiple requests that were started in 0-RTT data
-(but have the TokenBindingMessage sent after the handshake) and a single
-request multiplexed with them that was started after the handshake was finished
-(so it has a TokenBindingMessage with a signature over the standard exporter),
-this single request might get sent and processed before one of the
-TokenBindingMessages from a request that started in 0-RTT data. A
-per-connection ratchet would reject those TokenBindingMessages, while a
-per-stream ratchet would allow them.
+This option ends up moving around the synchronization issue and doesn’t solve
+it. If application data is multiplexed on the TLS connection (like in HTTP2),
+the ratchet has to be synchronized across the streams. This makes this approach
+impractical.
 
-Remember negotiation from previous connection
----------------------------------------------
+Use only 0-RTT exporter on connections with Token Binding and early data
+------------------------------------------------------------------------
 
-If the client and server remember what token binding key parameter was
-negotiated on the previous connection, the client could assume to use the same
-key type for token binding on the new (resumed) connection, and the negotiation
-extension in the handshake for the connection would only apply to 1-RTT data.
-This requires keeping more state on the server and client, but only slightly
-simplifies negotiation (effectively, the 0-RTT Token Binding key parameters are
-identical to the previous connection, and the negotiation determines the
-parameters going forward after the handshake).
+Since the client is allowed to use either exporter, the server has to check
+both values to see if a TokenBindingMessage is valid. A client could choose to
+always use the 0-RTT exporter, so to simplify implementations, the spec could
+require using only the 0-RTT exporter if both Token Binding and early data are
+used.
+
+Allow new Token Binding negotiation on 0-RTT connection
+-------------------------------------------------------
+
+The proposed design has the client indicate a single Token Binding key
+parameter in its ClientHello which prevents the key type from changing between
+early data and handshake completion. Another option would be to have the client
+put the in first entry of their key parameters list the key type being used in
+0-RTT, and allow the client and server to potentially negotiate a new type to
+use once the handshake is complete. This alternate gains a slight amount of key
+type agility in exchange for implementation difficulty.
+
+Token Binding and 0-RTT data are mutually exclusive
+---------------------------------------------------
+
+If a TokenBindingMessage is never allowed in 0-RTT data, then no changes are
+needed to the exporter or negotiation. A server that wishes to support Token
+Binding must not create any NewSessionTicket messages with the allow_early_data
+flag set. A client must not send the token binding negotiation extension and
+the EarlyDataIndication extension in the same ClientHello.
 
 
 Security Considerations
@@ -274,6 +315,19 @@ server, but the application data that is replayed is untouched. This replay is
 done by a more powerful attacker who is able to view the plaintext and then
 spoof a connection with the same parameters so that the replayed
 TokenBindingMessage still validates when sent with different application data.
+
+Early data ticket age window
+----------------------------
+
+When an attacker with control of the PSK secret replays a TokenBindingMessage,
+it has to use the same ClientHello that the client used. The ClientHello
+includes an “obfuscated_ticket_age” in its EarlyDataIndication extension, which
+the server can use to narrow the window in which that ClientHello will be
+accepted. Even if a PSK is valid for a week, the server will only accept that
+particular ClientHello for a smaller time window based on the ticket age. A
+server should make their acceptance window for this value as small as practical
+to limit an attacker’s ability to replay a ClientHello and send new application
+data with the stolen TokenBindingMessage.
 
 Acknowledgements
 ================
