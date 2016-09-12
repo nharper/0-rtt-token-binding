@@ -54,7 +54,7 @@ describes changes to Token Binding to allow for a client to send a proof of
 possession in its 0-RTT application data, albeit with weaker security
 properties.
 
-Requirements language
+Requirements Language
 ---------------------
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
@@ -63,7 +63,7 @@ NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
 {{RFC2119}}.
 
 
-Proposed design
+Proposed Design
 ===============
 
 A TokenBinding struct as defined in {{I-D.ietf-tokbind-protocol}} contains a
@@ -128,7 +128,7 @@ the same interface as the {{RFC5705}} exporter. It is defined as:
 
 Where HKDF-Expand-Label is the same function defined in {{I-D.ietf-tls-tls13}}.
 
-TokenBinding signature definition
+TokenBinding Signature Definition
 ---------------------------------
 
 In {{I-D.ietf-tokbind-protocol}}, the signature field of the TokenBinding
@@ -161,7 +161,7 @@ in {{I-D.ietf-tls-tls13}} for the remainder of the connection, as if no 0-RTT
 data had ever been sent.
 
 
-Negotiation TLS extension
+Negotiation TLS Extension
 -------------------------
 
 The behavior of the Token Binding negotiation TLS extension does not change for
@@ -177,7 +177,7 @@ the parameter from the initial connection. This is the same behavior as ALPN
 and SNI extensions.
 
 
-Implementation challenges
+Implementation Challenges
 =========================
 
 The client has to be able to modify the message it sends in 0-RTT data if the
@@ -193,10 +193,10 @@ in {{I-D.ietf-tokbind-protocol}}, those servers cannot share a cert and use
 HTTP2.
 
 
-Alternatives considered
+Alternatives Considered
 =======================
 
-Use both 0-RTT and 1-RTT exporters on same connection
+Use Both 0-RTT and 1-RTT Exporters on Same Connection
 -----------------------------------------------------
 
 The client could be required to use the 0-RTT EKM when the TokenBindingMessage
@@ -221,7 +221,7 @@ additional security benefits (since the server would have to accept a client
 only using the 0-RTT exporter).
 
 
-Don't remember key parameter from previous connection
+Don't Remember Key Parameter From Previous Connection
 -----------------------------------------------------
 
 The proposed design uses the same Token Binding key parameter from the previous
@@ -236,7 +236,7 @@ example requiring the server to reject early data if it doesn’t choose the fir
 parameter, or requiring the client to send only one key parameter.
 
 
-Token Binding and 0-RTT data are mutually exclusive
+Token Binding and 0-RTT Data Are Mutually Exclusive
 ---------------------------------------------------
 
 If a TokenBindingMessage is never allowed in 0-RTT data, then no changes are
@@ -259,7 +259,7 @@ connection that negotiated token binding.
 designed to prevent 0-RTT data from being replayed.
 
 
-Exporter weaknesses
+Exporter Weaknesses
 -------------------
 
 The exporter specified in {{I-D.ietf-tokbind-protocol}} is chosen so that a
@@ -298,7 +298,7 @@ spoof a connection with the same parameters so that the replayed
 TokenBindingMessage still validates when sent with different application data.
 
 
-Early data ticket age window
+Early Data Ticket Age Window
 ----------------------------
 
 When an attacker with control of the PSK secret replays a TokenBindingMessage,
