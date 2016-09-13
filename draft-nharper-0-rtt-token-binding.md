@@ -1,8 +1,7 @@
 ---
 title: Token Binding for 0-RTT TLS 1.3 Connections
 abbrev: 0-RTT Token Binding
-docname: draft-nharper-0-rtt-token-binding
-date: 2016-09-12
+docname: draft-nharper-0-rtt-token-binding-00
 category: std
 
 ipr: trust200902
