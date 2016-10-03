@@ -32,8 +32,9 @@ informative:
 --- abstract
 
 This document describes how Token Binding can be used in the 0-RTT data of a
-TLS 1.3 connection. This involves defining a 0-RTT exporter for TLS 1.3 and
-updating how Token Binding negotiation works. A TokenBindingMessage sent in
+TLS 1.3 connection. This involves defining a 0-RTT exporter for TLS 1.3,
+updating how Token Binding negotiation works, and adding a mechanism for
+indicating whether a server prevents replay. A TokenBindingMessage sent in
 0-RTT data has different security properties than one sent after the TLS
 handshake has finished, which this document also describes.
 
@@ -160,8 +161,10 @@ in {{I-D.ietf-tls-tls13}} for the remainder of the connection, as if no 0-RTT
 data had ever been sent.
 
 
-Negotiation TLS Extension
+Negotiating Token Binding
 -------------------------
+
+### Negotiation TLS Extension
 
 The behavior of the Token Binding negotiation TLS extension does not change for
 a 0-RTT connection: the client and server should process this extension the
@@ -175,6 +178,30 @@ accept early data if the negotiated Token Binding key parameter does not match
 the parameter from the initial connection. This is the same behavior as ALPN
 and SNI extensions.
 
+### Replay Protection Indication Extension
+
+The signed exporter value used in a 0-RTT connection is not specific to
+the connection, so an attacker may be able to replay the signature without
+having possession of the private key.  To combat this attack, a server may
+implement some sort of replay prevention, and indicate this to the client.
+A new TLS extension "token_binding_replay_indication" is defined for the
+client to query and server to indicate whether it has implemented a
+mechanism to prevent replay.
+
+~~~
+enum {
+    token_binding_replay_indication(TBD), (65535)
+} ExtensionType;
+~~~
+
+When sent, this extension always has zero length. If a client wishes to
+know whether its peer is preventing replay of TokenBinding structs across
+multiple connections, the client can include this extension in its
+ClientHello.  Upon receiving this extension, the server must echo it back
+if it is using such a mechanism to prevent replay.
+
+This extension is sent by the client every time it sends a "token_binding"
+{{I-D.ietf-tokbind-negotiation}} extension.
 
 Implementation Challenges
 =========================
@@ -243,6 +270,13 @@ needed to the exporter or negotiation. A server that wishes to support Token
 Binding must not create any NewSessionTicket messages with the allow_early_data
 flag set. A client must not send the token binding negotiation extension and
 the EarlyDataIndication extension in the same ClientHello.
+
+IANA Considerations
+===================
+
+This document defines a new TLS extension
+"token_binding_replay_indication", which needs to be added to the IANA
+"Transport Layer Security (TLS) Extensions" registry.
 
 Security Considerations
 =======================
