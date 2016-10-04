@@ -198,7 +198,7 @@ When sent, this extension always has zero length. If a client wishes to
 know whether its peer is preventing replay of TokenBinding structs across
 multiple connections, the client can include this extension in its
 ClientHello.  Upon receiving this extension, the server must echo it back
-if it is using such a mechanism to prevent replay.
+if it is using such a mechanism (like those described in {{server-replay}}) to prevent replay.
 
 This extension is sent by the client every time it sends a "token_binding"
 {{I-D.ietf-tokbind-negotiation}} extension.
@@ -288,12 +288,18 @@ a client can choose to never send 0-RTT data on a connection where it uses
 token binding, and a server can choose to reject any 0-RTT data sent on a
 connection that negotiated token binding.
 
-0-RTT data in TLS 1.3 can be replayed by an attacker. Token Binding is not
-designed to prevent 0-RTT data from being replayed.
+0-RTT data in TLS 1.3 has weaker security properties than other kinds of
+TLS data. Specifically, TLS 1.3 does not guarantee non-replayability of
+data between connections. Token Binding has similar replayability issues
+when in 0-RTT data, but preventing replay of Token Binding and preventing
+replay of 0-RTT data are two separate problems. Token Binding is not
+designed to prevent replay of 0-RTT data, although solutions for
+preventing the replay of Token Binding might also be applicable to 0-RTT
+data.
 
 
-Exporter Weaknesses
--------------------
+Exporter Replayability
+----------------------
 
 The exporter specified in {{I-D.ietf-tokbind-protocol}} is chosen so that a
 client and server have the same exporter value only if they are on the same TLS
@@ -315,13 +321,6 @@ Finished message in the handshake for this TLS connection. Nevertheless, by
 that point the server has already processed the attacker’s message with the
 replayed TokenBindingMessage.
 
-If the client secures the PSK with the same level of protection as the Token
-Binding key, then for an attacker to steal the PSK to attack the 0-RTT exporter
-would mean that the attacker could also steal the Token Binding key directly.
-Therefore, it is recommended that any client implementing Token Binding on
-0-RTT connections also secure their PSK resumption secrets with the same
-strength as their Token Binding keys.
-
 This sort of replayability of a TokenBindingMessage is different than the
 replayability caveat of 0-RTT application data in TLS 1.3. A network observer
 can replay 0-RTT data from TLS 1.3 without knowing any secrets of the client or
@@ -330,8 +329,52 @@ done by a more powerful attacker who is able to view the plaintext and then
 spoof a connection with the same parameters so that the replayed
 TokenBindingMessage still validates when sent with different application data.
 
+Replay Mitigations
+------------------
 
-Early Data Ticket Age Window
+This section presents multiple ways that a client or server can prevent
+the replay of a TokenBinding while still using Token Binding with 0-RTT
+data.
+
+If a client or server implements a measure that prevents all replays, then
+its peer does not also need to implement such a mitigation. A client that
+is concerned about replay SHOULD implement replay a mitigation instead of
+relying on a signal from the server through the replay indication
+extension.
+
+### Server Mitigations {#server-replay}
+
+If a server uses a session cache instead of stateless tickets, it can
+enforce that a PSK generated for resumption can only be used once. If an
+attacker tries to replay 0-RTT data (with a TokenBindingMessage), the
+server will reject it because the PSK was already used.
+
+Preventing all replay of 0-RTT data is not necessary to prevent replay of
+a TokenBinding. A server could implement a mechanism to prevent a
+particular TokenBinding from being presented on more than one connection.
+In cases where a server's TLS termination and application layer processing
+happen in different locations, this option might be easier to implement,
+especially when not all requests have bound tokens. This processing can
+also take advantage of the structure of the bound token, e.g. a token that
+identifies which user is making a request could shard its store of which
+TokenBindings have been seen based on the user ID.
+
+A server can prevent some, but not all, 0-RTT data replay with a tight
+time window for the ticket age that it will accept. See {{ticket-age}} for
+more details.
+
+### Client Mitigations
+
+A client cannot prevent a sufficiently motivated attacker from replaying a
+TokenBinding, but it can make it so difficult to replay the TokenBinding
+that it is easier for the attacker to steal the Token Binding key
+directly. If the client secures the resumption secret with the same level
+of protection as the Token Binding key, then the client has made it not
+worth the effort of the attacker to attempt to replay a TokenBinding.
+Ideally the resumption secret (and Token Binding key) are protected
+strongly andvirtually non-exportable.
+
+Early Data Ticket Age Window {#ticket-age}
 ----------------------------
 
 When an attacker with control of the PSK secret replays a TokenBindingMessage,
@@ -344,10 +387,22 @@ server should make their acceptance window for this value as small as practical
 to limit an attacker’s ability to replay a ClientHello and send new application
 data with the stolen TokenBindingMessage.
 
+Lack of Freshness
+-----------------
+
+The 0-RTT exporter value does not contain anything that the client cannot
+precompute before connecting to the server. Therefore, an attacker could
+have a client generate but not send a series of messages to take
+particular actions, and then selectively send one of those messages at a
+later date.  If this attack includes deleting the resumption secret from
+the client, then these latent attacker-held messages will be the only ones
+to use that resumption secret and replay protections do not prevent this
+attack.
+
 Acknowledgements
 ================
 
-The author would like to thank David Benjamin, Steven Valdez, and Bill Cox for
-their feedback and suggestions.
+The author would like to thank David Benjamin, Steven Valdez, Bill Cox,
+and Andrei Popov for their feedback and suggestions.
 
 --- back
