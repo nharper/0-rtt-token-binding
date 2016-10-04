@@ -372,7 +372,7 @@ directly. If the client secures the resumption secret with the same level
 of protection as the Token Binding key, then the client has made it not
 worth the effort of the attacker to attempt to replay a TokenBinding.
 Ideally the resumption secret (and Token Binding key) are protected
-strongly andvirtually non-exportable.
+strongly and virtually non-exportable.
 
 Early Data Ticket Age Window {#ticket-age}
 ----------------------------
