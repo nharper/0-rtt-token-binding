@@ -31,12 +31,12 @@ informative:
 
 --- abstract
 
-This document describes how Token Binding can be used in the 0-RTT data of a
-TLS 1.3 connection. This involves defining a 0-RTT exporter for TLS 1.3,
-updating how Token Binding negotiation works, and adding a mechanism for
-indicating whether a server prevents replay. A TokenBindingMessage sent in
-0-RTT data has different security properties than one sent after the TLS
-handshake has finished, which this document also describes.
+This document describes how Token Binding can be used in the 0-RTT data of a TLS
+1.3 connection. This involves updating how Token Binding negotiation works and
+adding a mechanism for indicating whether a server prevents replay. A
+TokenBindingMessage sent in 0-RTT data has different security properties than
+one sent after the TLS handshake has finished, which this document also
+describes.
 
 --- middle
 
@@ -48,11 +48,12 @@ tokens (e.g. HTTP cookies, OAuth tokens) to the TLS layer on which they are
 presented. It does so by signing an {{RFC5705}} exporter value from the TLS
 connection. TLS 1.3 introduces a new mode that allows a client to send
 application data on its first flight. If this 0-RTT data contains a security
-token, the client would want to prove possession of its private key. However,
-the TLS exporter cannot be run until the handshake has finished. This document
-describes changes to Token Binding to allow for a client to send a proof of
-possession in its 0-RTT application data, albeit with weaker security
-properties.
+token, the client would want to prove possession of its private key. The
+{{RFC5705}}-style exporter provided by TLS 1.3 cannot be run until the
+handshake has finished. TLS 1.3 also provides an exporter that can be used with
+0-RTT data, but it requires that the application explicitly specify that use.
+This document specifies how to use the early_exporter_secret with Token Binding
+in TLS 1.3 0-RTT data.
 
 Requirements Language
 ---------------------
@@ -67,98 +68,41 @@ Proposed Design
 ===============
 
 A TokenBinding struct as defined in {{I-D.ietf-tokbind-protocol}} contains a
-signature of the EKM value from the TLS layer. When a client is building 0-RTT
-data to send on a TLS 1.3 connection, there is no EKM value available. This
-design changes the definition of the TokenBinding.signature field to use a
-different exporter for 0-RTT data, as well as defines that exporter. Since no
-negotiation for the connection can happen before the client sends this
-TokenBindingMessage in 0-RTT data, this document also describes how a client
-decides what TokenBindingMessage to send in 0-RTT data and how a server should
-interpret that message.
+signature of the EKM value from the TLS layer. Under normal circumstances, a
+TokenBinding on a TLS 1.3 connection would use the exporter_secret to derive the
+EKM value. When 0-RTT data is assembled to be sent, the exporter_secret is not
+yet available.  This design changes the definition of the TokenBinding.signature
+field to use the exporter with early_exporter_secret for 0-RTT data, as well as
+defines that exporter. Since no negotiation for the connection can happen before
+the client sends this TokenBindingMessage in 0-RTT data, this document also
+describes how a client decides what TokenBindingMessage to send in 0-RTT data
+and how a server should interpret that message.
 
 If a client does not send any 0-RTT data, or if the server rejects the client’s
-0-RTT data, then the client MUST use the existing 1-RTT exporter, as defined in
+0-RTT data, then the client MUST use the 1-RTT exporter, as defined in
 {{I-D.ietf-tokbind-protocol}}.
-
-0-RTT Exporter
---------------
-
-In the key schedule for TLS 1.3, step is added between Early Secret and
-HKDF-Extract(ECDHE, Early Secret) to derive a value early_exporter_secret. With
-this modification, the key schedule (from {{I-D.ietf-tls-tls13}} section 7.1)
-looks like the following:
-
-~~~
-
-
-                     0
-                     |
-                     v
-       PSK ->  HKDF-Extract
-                     |
-                     v
-               Early Secret
-                     |
-                     +---------> Derive-Secret(., "early traffic secret",
-                     |                         ClientHello)
-                     |                         = early_traffic_secret
-                     |
-                     +---------> Derive-Secret(., “early exporter secret”,
-                     |                         ClientHello)
-                     |                         = early_exporter_secret
-                     v
-    (EC)DHE -> HKDF-Extract
-                     |
-                     ...
-~~~
-
-
-This definition does not affect the value of anything else derived in this key
-schedule.
-
-The 0-RTT exporter is defined similarly to exporter in section 7.3.3, and has
-the same interface as the {{RFC5705}} exporter. It is defined as:
-
-~~~
-
-
-    HKDF-Expand-Label(early_exporter_secret,
-                      label, context_value, key_length)
-~~~
-
-Where HKDF-Expand-Label is the same function defined in {{I-D.ietf-tls-tls13}}.
 
 TokenBinding Signature Definition
 ---------------------------------
 
 In {{I-D.ietf-tokbind-protocol}}, the signature field of the TokenBinding
 struct is defined to be the signature of a concatentation that includes the EKM
-value. This document changes that EKM value to be one of two possible values.
-
-The first exporter value is the output of the 0-RTT exporter defined above,
-which can be used in any TokenBindingMessage. The second is the exporter
-defined in section 7.3.3 of {{I-D.ietf-tls-tls13}}, which can only be used once
-the handshake is complete. In both cases, the exporter is called with the
-following input values:
-
-- Label: The ASCII string “EXPORTER-Token-Binding” with no terminating NUL.
-- Context value: NULL (no application context supplied).
-- Length: 32 bytes.
-
-These are the same values as defined in section 3 of
-{{I-D.ietf-tokbind-protocol}}.
+value. Depending on the circumstances, the EKM value is computed using either
+exporter_secret or early_exporter_secret as the Secret. The same Secret is used
+for the entirety of the connection.
 
 The rules for a client choosing which exporter to use are as follows. A client
 which is not sending any 0-RTT data on a connection MUST use the exporter
-defined in {{I-D.ietf-tls-tls13}} for all TokenBindingMessages on that
-connection so that it is compatible with {{I-D.ietf-tokbind-protocol}}. A client
-that sends a TokenBindingMessage in 0-RTT data must use the 0-RTT exporter
-defined in this document since the one in {{I-D.ietf-tls-tls13}} cannot be used
-at that time. A client that sends 0-RTT data which is not rejected by the server
-MUST use the 0-RTT exporter for the rest of the connection. If the server
-rejects the client’s 0-RTT data, then the client MUST use the exporter defined
-in {{I-D.ietf-tls-tls13}} for the remainder of the connection, as if no 0-RTT
-data had ever been sent.
+defined in {{I-D.ietf-tls-tls13}} (using exporter_secret as the Secret) for all
+TokenBindingMessages on that connection so that it is compatible with
+{{I-D.ietf-tokbind-protocol}}.  A client that sends a TokenBindingMessage in
+0-RTT data must use the exporter with early_exporter_secret as the Secret (the
+"0-RTT exporter") since exporter_secret is not defined at that time. A client
+that sends 0-RTT data which is not rejected by the server MUST use the 0-RTT
+exporter for the rest of the connection. If the server rejects the client’s
+0-RTT data, then the client MUST use the exporter defined in
+{{I-D.ietf-tls-tls13}} for the remainder of the connection, as if no 0-RTT data
+had ever been sent.
 
 
 Negotiating Token Binding
@@ -180,13 +124,13 @@ and SNI extensions.
 
 ### Replay Protection Indication Extension
 
-The signed exporter value used in a 0-RTT connection is not specific to
-the connection, so an attacker may be able to replay the signature without
-having possession of the private key.  To combat this attack, a server may
-implement some sort of replay prevention, and indicate this to the client.
-A new TLS extension "token_binding_replay_indication" is defined for the
-client to query and server to indicate whether it has implemented a
-mechanism to prevent replay.
+The signed exporter value used in a 0-RTT connection is not guaranteed to be
+unique to the connection, so an attacker may be able to replay the signature
+without having possession of the private key.  To combat this attack, a server
+may implement some sort of replay prevention, and indicate this to the client.
+A new TLS extension "token_binding_replay_indication" is defined for the client
+to query and server to indicate whether it has implemented a mechanism to
+prevent replay.
 
 ~~~
 enum {
@@ -198,10 +142,11 @@ When sent, this extension always has zero length. If a client wishes to
 know whether its peer is preventing replay of TokenBinding structs across
 multiple connections, the client can include this extension in its
 ClientHello.  Upon receiving this extension, the server must echo it back
-if it is using such a mechanism (like those described in {{server-replay}}) to prevent replay.
+if it is using such a mechanism (like those described in {{server-replay}}) to
+prevent replay.
 
-This extension is sent by the client every time it sends a "token_binding"
-{{I-D.ietf-tokbind-negotiation}} extension.
+A client that wishes to use this extension should send it every time it sends a
+"token_binding" {{I-D.ietf-tokbind-negotiation}} extension.
 
 Implementation Challenges
 =========================
@@ -227,9 +172,16 @@ Use Both 0-RTT and 1-RTT Exporters on Same Connection
 
 The client could be required to use the 0-RTT EKM when the TokenBindingMessage
 is sent in 0-RTT data, and the 1-RTT EKM when it is sent in 1-RTT data. This
-creates synchronization issues on both the client and server to know when the
-application layer switched from writing in early data to writing after the
-handshake finished (and this switch could be in the middle of an HTTP request).
+requires that the abstraction of the TLS layer visible to the application where
+it is handling Token Binding exposes which phase the application data is being
+sent/received in. An application could very easily have this detail abstracted
+away; for example, the client might have a function like "write_early_data_ok"
+that will send data in 0-RTT the current connection state permits it, and
+otherwise send data post-handshake. A pathological client might send the first
+few bytes of an application message in 0-RTT, but send the rest after the
+handshake (including the TokenBindingMessage). The server's application layer
+would have to track which bytes of the request were sent pre- and post-handshake
+to know how to validate that TokenBindingMessage.
 
 This constraint could be relaxed slightly. A ratcheting mechanism could be used
 where the client uses the 0-RTT EKM while it thinks that it’s writing early
@@ -297,6 +249,26 @@ designed to prevent replay of 0-RTT data, although solutions for
 preventing the replay of Token Binding might also be applicable to 0-RTT
 data.
 
+Attacks on PSK-only Key Exchange and Token Binding
+--------------------------------------------------
+
+An attacker who possesses the PSK can eavesdrop on an existing connection that
+uses that PSK to obtain a TokenBindingMessage that is valid on the connection
+and then hijack the connection to send whatever attacker-controlled data it
+wishes. Because the regular exporter closes over the server random, this
+TokenBindingMessage is valid only for that connection.
+
+If the attacker does the same thing with a pure-PSK connection and 0-RTT Token
+Binding, the attacker can replay the original ClientHello and the exporter will
+stay the same, allowing the attacker to obtain a TokenBindingMessage from one
+connection and replay it on future connections. The only way for a server to
+prevent this replay is to prevent the client from ever repeating a client random
+in the handshake.
+
+If a server accepting connections with PSK-only key establishment is concerned
+about the threat of PSK theft and also implements Token Binding, then that
+server must either reject all 0-RTT token bindings, or implement some form of
+preventing reuse of a client random.
 
 Exporter Replayability
 ----------------------
