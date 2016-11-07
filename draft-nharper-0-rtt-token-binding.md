@@ -48,7 +48,8 @@ tokens (e.g. HTTP cookies, OAuth tokens) to the TLS layer on which they are
 presented. It does so by signing an {{RFC5705}} exporter value from the TLS
 connection. TLS 1.3 introduces a new mode that allows a client to send
 application data on its first flight. If this 0-RTT data contains a security
-token, the client would want to prove possession of its private key. The
+token, then a client using Token Binding would want to prove possession of its
+Token Binding private key so that the server can verify the binding. The
 {{RFC5705}}-style exporter provided by TLS 1.3 cannot be run until the
 handshake has finished. TLS 1.3 also provides an exporter that can be used with
 0-RTT data, but it requires that the application explicitly specify that use.
@@ -72,11 +73,11 @@ signature of the EKM value from the TLS layer. Under normal circumstances, a
 TokenBinding on a TLS 1.3 connection would use the exporter_secret to derive the
 EKM value. When 0-RTT data is assembled to be sent, the exporter_secret is not
 yet available.  This design changes the definition of the TokenBinding.signature
-field to use the exporter with early_exporter_secret for 0-RTT data, as well as
-defines that exporter. Since no negotiation for the connection can happen before
-the client sends this TokenBindingMessage in 0-RTT data, this document also
-describes how a client decides what TokenBindingMessage to send in 0-RTT data
-and how a server should interpret that message.
+field to use the exporter with early_exporter_secret for 0-RTT data.  Since no
+negotiation for the connection can happen before the client sends this
+TokenBindingMessage in 0-RTT data, this document also describes how a client
+decides what TokenBindingMessage to send in 0-RTT data and how a server should
+interpret that message.
 
 If a client does not send any 0-RTT data, or if the server rejects the client’s
 0-RTT data, then the client MUST use the 1-RTT exporter, as defined in
@@ -87,9 +88,10 @@ TokenBinding Signature Definition
 
 In {{I-D.ietf-tokbind-protocol}}, the signature field of the TokenBinding
 struct is defined to be the signature of a concatentation that includes the EKM
-value. Depending on the circumstances, the EKM value is computed using either
-exporter_secret or early_exporter_secret as the Secret. The same Secret is used
-for the entirety of the connection.
+value. Depending on the circumstances, the exporter value in section 7.3.3 of
+{{I-D.ietf-tls-tls13}} is computed using either exporter_secret or
+early_exporter_secret as the Secret. The same Secret is used for the entirety of
+the connection.
 
 The rules for a client choosing which exporter to use are as follows. A client
 which is not sending any 0-RTT data on a connection MUST use the exporter
@@ -101,8 +103,8 @@ TokenBindingMessages on that connection so that it is compatible with
 that sends 0-RTT data which is not rejected by the server MUST use the 0-RTT
 exporter for the rest of the connection. If the server rejects the client’s
 0-RTT data, then the client MUST use the exporter defined in
-{{I-D.ietf-tls-tls13}} for the remainder of the connection, as if no 0-RTT data
-had ever been sent.
+{{I-D.ietf-tls-tls13}} (using exporter_secret as the Secret) for the remainder
+of the connection, as if no 0-RTT data had ever been sent.
 
 
 Negotiating Token Binding
@@ -121,6 +123,11 @@ ticket (now being used for resumption) was established. The server MUST NOT
 accept early data if the negotiated Token Binding key parameter does not match
 the parameter from the initial connection. This is the same behavior as ALPN
 and SNI extensions.
+
+If 0-RTT data is being sent with Token Binding using a PSK obtained out-of-band,
+then the Token Binding key parameter to use with that PSK must also be
+provisioned to both parties, and only that key parameter must be used with that
+PSK.
 
 ### Replay Protection Indication Extension
 
@@ -143,7 +150,10 @@ know whether its peer is preventing replay of TokenBinding structs across
 multiple connections, the client can include this extension in its
 ClientHello.  Upon receiving this extension, the server must echo it back
 if it is using such a mechanism (like those described in {{server-replay}}) to
-prevent replay.
+prevent replay. A client that only wishes to send 0-RTT Token Binding if the
+server implements replay protection can send this extension on first connection
+establishment, and if the server doesn't send it back (but does support Token
+Binding) the client can choose to not send 0-RTT messages to that server.
 
 A client that wishes to use this extension should send it every time it sends a
 "token_binding" {{I-D.ietf-tokbind-negotiation}} extension.
@@ -175,7 +185,7 @@ is sent in 0-RTT data, and the 1-RTT EKM when it is sent in 1-RTT data. This
 requires that the abstraction of the TLS layer visible to the application where
 it is handling Token Binding exposes which phase the application data is being
 sent/received in. An application could very easily have this detail abstracted
-away; for example, the client might have a function like "write_early_data_ok"
+away; for example, the client might have a function like "write_possibly_early"
 that will send data in 0-RTT the current connection state permits it, and
 otherwise send data post-handshake. A pathological client might send the first
 few bytes of an application message in 0-RTT, but send the rest after the
@@ -311,7 +321,7 @@ data.
 If a client or server implements a measure that prevents all replays, then
 its peer does not also need to implement such a mitigation. A client that
 is concerned about replay SHOULD implement replay a mitigation instead of
-relying on a signal from the server through the replay indication
+relying solely on a signal from the server through the replay indication
 extension.
 
 ### Server Mitigations {#server-replay}
