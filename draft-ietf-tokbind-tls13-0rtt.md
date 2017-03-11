@@ -73,8 +73,8 @@ signature of the EKM value from the TLS layer. Under normal circumstances, a
 TokenBinding on a TLS 1.3 connection would use the exporter_secret to derive the
 EKM value. When 0-RTT data is assembled to be sent, the exporter_secret is not
 yet available.  This design changes the definition of the TokenBinding.signature
-field to use the exporter with early_exporter_secret for 0-RTT data.  Since no
-negotiation for the connection can happen before the client sends this
+field to use the exporter with either early_exporter_secret or exporter_secret.
+Since no negotiation for the connection can happen before the client sends this
 TokenBindingMessage in 0-RTT data, this document also describes how a client
 decides what TokenBindingMessage to send in 0-RTT data and how a server should
 interpret that message.
