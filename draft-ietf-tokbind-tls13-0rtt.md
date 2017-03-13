@@ -346,18 +346,6 @@ server should make their acceptance window for this value as small as practical
 to limit an attacker’s ability to replay a ClientHello and send new application
 data with the stolen TokenBindingMessage.
 
-Lack of Freshness
------------------
-
-The 0-RTT exporter value does not contain anything that the client cannot
-precompute before connecting to the server. Therefore, an attacker could
-have a client generate but not send a series of messages to take
-particular actions, and then selectively send one of those messages at a
-later date.  If this attack includes deleting the resumption secret from
-the client, then these latent attacker-held messages will be the only ones
-to use that resumption secret and replay protections do not prevent this
-attack.
-
 Acknowledgements
 ================
 
