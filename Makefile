@@ -1,5 +1,3 @@
-# MD_PREPROCESSOR := python mk-appendix.py
-
 include lib/main.mk
 
 lib/main.mk:
