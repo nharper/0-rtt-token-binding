@@ -143,35 +143,6 @@ then the Token Binding key parameter to use with that PSK must also be
 provisioned to both parties, and only that key parameter must be used with that
 PSK.
 
-### Replay Protection Indication Extension
-
-The signed exporter value used in a 0-RTT connection is not guaranteed to be
-unique to the connection, so an attacker may be able to replay the signature
-without having possession of the private key.  To combat this attack, a server
-may implement some sort of replay prevention, and indicate this to the client.
-A new TLS extension "token_binding_replay_indication" is defined for the client
-to query and server to indicate whether it has implemented a mechanism to
-prevent replay.
-
-~~~
-enum {
-    token_binding_replay_indication(TBD), (65535)
-} ExtensionType;
-~~~
-
-When sent, this extension always has zero length. If a client wishes to
-know whether its peer is preventing replay of TokenBinding structs across
-multiple connections, the client can include this extension in its
-ClientHello.  Upon receiving this extension, the server must echo it back
-if it is using such a mechanism (like those described in {{server-replay}}) to
-prevent replay. A client that only wishes to send 0-RTT Token Binding if the
-server implements replay protection can send this extension on first connection
-establishment, and if the server doesn't send it back (but does support Token
-Binding) the client can choose to not send 0-RTT messages to that server.
-
-A client that wishes to use this extension should send it every time it sends a
-"token_binding" {{I-D.ietf-tokbind-negotiation}} extension.
-
 Implementation Challenges
 =========================
 
@@ -190,10 +161,6 @@ HTTP2.
 
 IANA Considerations
 ===================
-
-This document defines a new TLS extension
-"token_binding_replay_indication", which needs to be added to the IANA
-"Transport Layer Security (TLS) Extensions" registry.
 
 This document defines a new Token Binding extension "early_exporter", which
 needs to be added to the IANA "Token Binding Extensions" registry.
@@ -290,18 +257,12 @@ TokenBindingMessage still validates when sent with different application data.
 Replay Mitigations
 ------------------
 
-This section presents multiple ways that a client or server can prevent
+This section presents multiple ways that a client or server can mitigate
 the replay of a TokenBinding while still using Token Binding with 0-RTT
-data.
-
-If a client or server implements a measure that prevents all replays, then
-its peer does not also need to implement such a mitigation. A client that
-is concerned about replay SHOULD implement a replay mitigation instead of
-relying solely on a signal from the server through the replay indication
-extension. Note that even with replay mitigations, 0-RTT Token Binding is
+data. Note that even with replay mitigations, 0-RTT Token Binding is
 vulnerable to other attacks.
 
-### Server Mitigations {#server-replay}
+### Server Mitigations
 
 If a server uses a session cache instead of stateless tickets, it can
 enforce that a PSK generated for resumption can only be used once. If an
