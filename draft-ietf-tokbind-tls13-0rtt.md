@@ -109,16 +109,9 @@ for all TokenBindingMessages on that connection so that it is compatible with
 {{I-D.ietf-tokbind-protocol}}.
 
 When a client sends a TokenBindingMessage in 0-RTT data, it must use the
-early_exporter_secret. After the client receives an application-layer response
-from the server, it must use the exporter_secret for all future token bindings
-on that connection. Requests sent after the client's TLS Finished message, but
-before the client processes any application-layer response from the server, may
-use either exporter secret in their token bindings.
-
-A server may choose to reject an application message containing a Token Binding
-that uses the early_exporter_secret. If it chooses to do so, it may send an
-application message indicating that the client should re-send the request (with
-a new Token Binding). In HTTP, this could be done with a 307 status code.
+early_exporter_secret. If the server accepts the 0-RTT data, the client must
+continue to use the early_exporter_secret for the rest of the connection. If the
+server rejects 0-RTT data, the client must use the exporter_secret.
 
 
 Negotiating Token Binding
