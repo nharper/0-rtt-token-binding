@@ -117,24 +117,83 @@ server rejects 0-RTT data, the client must use the exporter_secret.
 Negotiating Token Binding
 -------------------------
 
-### Negotiation TLS Extension
+### Token Binding Negotiation TLS Extension
 
-The behavior of the Token Binding negotiation TLS extension does not change for
-a 0-RTT connection: the client and server should process this extension the
-same way regardless of whether the client also sent the EarlyDataIndication
-extension.
+In TLS 1.3, the "token_binding" extension is sent by a server in
+EncryptedExtensions, whereas in previous versions of TLS this extension was sent
+in the ServerHello message. On a 1-RTT connection (whether it be a new
+connection or resumption), no application data is sent in either direction
+before the "token_binding" TLS extension in the EncryptedExtensions, and the
+choice of Token Binding version and key parameter is up to the server based on
+what the client sent and what the server's preferences are, following the same
+processing rules as in {{I-D.ietf-tokbind-negotiation}}.
 
-For the sake of choosing a key parameter to use in 0-RTT data, the client MUST
-use the same key parameter that was used on the connection during which the
-ticket (now being used for resumption) was established. The server MUST NOT
-accept early data if the negotiated Token Binding key parameter does not match
-the parameter from the initial connection. This is the same behavior as ALPN
-and SNI extensions.
+When a server issues a NewSessionTicket on a connection where Token Binding was
+negotiated, and the NewSessionTicket includes an "early_data" extension
+indicating that the ticket may be used to send 0-RTT data, the server may also
+include the "early_token_binding" extension in the NewSessionTicket to indicate
+that this ticket can be used for a future connection with Token Binding in 0-RTT
+data. If the server includes the "early_token_binding" extension in the
+NewSessionTicket, the server MUST store with the ticket the Token Binding
+version and key parameter used for the connection in which the ticket was
+issued. A client that supports Token Binding in 0-RTT data that receives a
+NewSessionTicket containing the "early_token_binding" extension must also
+store with the ticket the Token Binding version and key parameter of the
+connection in which the ticket was issued. The "early_token_binding" extension
+can appear in a NewSessionTicket message only if the "early_data" extension also
+appears in that message.
 
-If 0-RTT data is being sent with Token Binding using a PSK obtained out-of-band,
-then the Token Binding key parameter to use with that PSK must also be
-provisioned to both parties, and only that key parameter must be used with that
-PSK.
+A client that wishes to send a Token Binding message in 0-RTT data may only do
+so if the TLS connection in which the 0-RTT data is being sent is being resumed
+from a ticket which included the "early_token_binding" extension. Assuming the
+ticket included this extension, the client sends a ClientHello containing the
+"token_binding" extension, "early_data" extension, and "early_token_binding"
+extensions. The contents of the "token_binding" extension SHOULD be the same as
+they would be on a connection without "early_token_binding" to allow for the
+client and server to negotiate new Token Binding parameters if the early data is
+rejected. The Token Binding message sent in the 0-RTT data MUST be sent
+assuming that the same Token Binding version and key parameter from the
+connection where the ticket was received will also be negotiated on this
+connection. If the server includes the "early_data" extension in
+EncryptedExtensions in response to a ClientHello with "early_token_binding", but
+the server does not include "early_token_binding" in EncryptedExtensions, or if
+the server's "token_binding" extension does not match the values of the
+connection where the ticket was received, then the client MUST terminate the TLS
+connection with an illegal_parameter alert.
+
+If a server receives a ClientHello with the "early_token_binding" extension and
+supports Token Binding in 0-RTT data, it MUST perform the following checks:
+
+- If either the "early_data" or "token_binding" extensions are missing from the
+  ClientHello, terminate the TLS connection with an illegal_parameter alert.
+- If the ticket used for resumption is missing either of the "early_data" or
+  "early_token_binding" extensions, reject the early data.
+- Process the "token_binding" extension as if it were received on a 1-RTT
+  connection and compute the Token Binding version and key parameter to use. If
+  either of these values do not match the values that were negotiated on the
+  connection where the ticket used for resumption was sent, reject the early
+  data.
+- Perform any other checks to decide whether to accept early data. If the server
+  chooses to accept early data, include in EncryptedExtensions the "early_data"
+  extension, "early_token_binding" extension, and "token_binding" extension with
+  the same version and key parameter from the previous connection.
+
+A server that receives a ClientHello with "early_token_binding" cannot reject
+Token Binding and also accept early data at the same time. Said server may
+reject early data but still negotiate Token Binding.
+
+The behavior for the "token_binding" extension in 0-RTT is similar to that of
+ALPN and SNI: the client predicts the result of the negotiation, and if the
+actual negotiation differs, the server rejects the early data.
+
+### Indicating Use of 0-RTT Token Binding
+
+The TLS extension "early_token_binding" (extension type TBD) is used in the TLS
+ClientHello and EncryptedExtensions to indicate use of 0-RTT Token Binding on
+the current connection. It is also used in a NewSessionTicket message to
+indicate that 0-RTT Token Binding may be used on a connection resumed with that
+ticket.  In all cases, the "extension_data" field of this extension is empty, so
+the entire encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
 
 Implementation Challenges
 =========================
@@ -154,6 +213,9 @@ HTTP2.
 
 IANA Considerations
 ===================
+
+This document defines a new TLS extension "early_token_binding" with code point
+TBD which needs to be added to IANA's TLS "ExtensionType Values" registry.
 
 This document defines a new Token Binding extension "early_exporter", which
 needs to be added to the IANA "Token Binding Extensions" registry.
