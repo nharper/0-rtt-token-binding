@@ -195,8 +195,39 @@ indicate that 0-RTT Token Binding may be used on a connection resumed with that
 ticket.  In all cases, the "extension_data" field of this extension is empty, so
 the entire encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
 
-Implementation Challenges
+Implementation Considerations
 =========================
+
+### Not Implementing Token Binding on 0-RTT Connections
+
+This spec has been designed so that both clients and servers can support Token
+Binding on some connections and 0-RTT data on other connections without needing
+to support Token Binding on 0-RTT connections.
+
+A client that wishes to support both without supporting Token Binding on 0-RTT
+connections can function by completely ignoring the "early_token_binding" TLS
+extension. When resuming a connection with early data, the client can still
+advertise support for Token Binding, providing the server the opportunity to
+accept early data (without Token Binding) or to reject early data and negotiate
+Token Binding. By always including the "token_binding" extension in its
+ClientHello, the client can prioritize Token Binding over 0-RTT.
+
+A server can support both Token Binding and 0-RTT data without supporting Token
+Binding on 0-RTT connections by never minting NewSessionTickets containing the
+"early_token_binding" extension.  Such a server that never mints
+NewSessionTickets with "early_token_binding" can ignore that extension in a
+ClientHello as it would only appear if the client is not spec compliant.
+On connections where a server negotiates Token Binding, the server SHOULD NOT
+include the "early_data" extension in a NewSessionTicket.
+
+### Adding Support for Token Binding on 0-RTT Connections
+
+A server that supports early data but not Token Binding may wish to add support
+for Token Binding (and Token Binding on 0-RTT connections) at a later time. For
+a client to learn that a server supports Token Binding, the server must reject
+early data to send the "token_binding" extension.
+
+### Implementation Challenges
 
 The client has to be able to modify the message it sends in 0-RTT data if the
 0-RTT data gets rejected and needs to be retransmitted in 1-RTT data. Even if
