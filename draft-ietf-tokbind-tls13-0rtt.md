@@ -161,6 +161,19 @@ the server's "token_binding" extension does not match the values of the
 connection where the ticket was received, then the client MUST terminate the TLS
 connection with an illegal_parameter alert.
 
+It is valid for a client to send a ClientHello that contains both the
+"early_data" and "token_binding" extensions, but without the
+"early_token_binding" extension. This combination means that the client is
+attempting to resume a connection and is sending early data, but the client is
+not using Token Binding on this resumed connection (if the server accepts the
+early data). The presence of the "token_binding" extension is so the client can
+negotiate the use of Token Binding for this connection if the server rejects
+early data. A server's options on receiving this combination of extensions in
+the ClientHello are to 1) accept early data and continue the connection with no
+Token Binding, 2) reject early data and negotiate the use of Token Binding for
+this connection, or 3) reject early data and do not negotiate Token Binding for
+this connection.
+
 If a server receives a ClientHello with the "early_token_binding" extension and
 supports Token Binding in 0-RTT data, it MUST perform the following checks:
 
@@ -177,6 +190,9 @@ supports Token Binding in 0-RTT data, it MUST perform the following checks:
   chooses to accept early data, include in EncryptedExtensions the "early_data"
   extension, "early_token_binding" extension, and "token_binding" extension with
   the same version and key parameter from the previous connection.
+
+The "early_token_binding" extension must be present in EncryptedExtensions
+exactly when both "early_data" and "token_binding" are present.
 
 A server that receives a ClientHello with "early_token_binding" cannot reject
 Token Binding and also accept early data at the same time. Said server may
