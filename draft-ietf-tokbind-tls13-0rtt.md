@@ -32,11 +32,10 @@ informative:
 --- abstract
 
 This document describes how Token Binding can be used in the 0-RTT data of a TLS
-1.3 connection. This involves updating how Token Binding negotiation works and
-adding a mechanism for indicating whether a server prevents replay. A
-TokenBindingMessage sent in 0-RTT data has different security properties than
-one sent after the TLS handshake has finished, which this document also
-describes.
+1.3 connection. This involves a new TLS extension to negotiate and indicate the
+use of Token Binding in 0-RTT data.  A TokenBindingMessage sent in 0-RTT data
+has different security properties than one sent after the TLS handshake has
+finished, which this document also describes.
 
 --- middle
 
