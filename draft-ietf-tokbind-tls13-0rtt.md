@@ -1,6 +1,6 @@
 ---
 title: Token Binding for 0-RTT TLS 1.3 Connections
-abbrev: 0-RTT Token Binding
+abbrev: Token Binding in 0-RTT data
 docname: draft-ietf-tokbind-tls13-0rtt-latest
 category: std
 
@@ -55,6 +55,18 @@ handshake has finished. TLS 1.3 also provides an exporter that can be used with
 This document specifies how to use the early_exporter_secret with Token Binding
 in TLS 1.3 0-RTT data.
 
+Using Token Binding in 0-RTT data involves two main changes to Token Binding.
+The first is the use of a new TLS extension "early_token_binding" to indicate
+whether a TLS session ticket can be used with Token Binding in 0-RTT data, and
+to indicate whether an attempted 0-RTT connection is using Token Binding in
+0-RTT data. The second change is one that applies only if Token Binding in 0-RTT
+data is in use, which changes the definition of the TokenBinding.signature field
+to use TLS 1.3's early_exporter_secret.
+
+If a client does not send any 0-RTT data, or if the server rejects the client’s
+0-RTT data, then the client MUST use the 1-RTT exporter, as defined in
+{{I-D.ietf-tokbind-protocol}}.
+
 Requirements Language
 ---------------------
 
@@ -63,27 +75,8 @@ NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
 "OPTIONAL" in this document are to be interpreted as described in
 {{RFC2119}}.
 
-
-Proposed Design
-===============
-
-A TokenBinding struct as defined in {{I-D.ietf-tokbind-protocol}} contains a
-signature of the EKM value from the TLS layer. Under normal circumstances, a
-TokenBinding on a TLS 1.3 connection would use the exporter_secret to derive the
-EKM value. When 0-RTT data is assembled to be sent, the exporter_secret is not
-yet available.  This design changes the definition of the TokenBinding.signature
-field to use the exporter with either early_exporter_secret or exporter_secret.
-Since no negotiation for the connection can happen before the client sends this
-TokenBindingMessage in 0-RTT data, this document also describes how a client
-decides what TokenBindingMessage to send in 0-RTT data and how a server should
-interpret that message.
-
-If a client does not send any 0-RTT data, or if the server rejects the client’s
-0-RTT data, then the client MUST use the 1-RTT exporter, as defined in
-{{I-D.ietf-tokbind-protocol}}.
-
 TokenBinding Signature Definition
----------------------------------
+=================================
 
 In {{I-D.ietf-tokbind-protocol}}, the signature field of the TokenBinding
 struct is defined to be the signature of a concatentation that includes the EKM
@@ -100,7 +93,8 @@ MUST be present in every TokenBinding struct where the exporter that is signed
 uses the early_exporter_secret, and it MUST NOT be present in any other
 TokenBinding structs.
 
-### Selecting Which Exporter Secret to Use
+Selecting Which Exporter Secret to Use
+--------------------------------------
 
 A client which is not sending any 0-RTT data on a connection MUST use the
 exporter defined in {{I-D.ietf-tls-tls13}} (using exporter_secret as the Secret)
@@ -114,9 +108,10 @@ server rejects 0-RTT data, the client must use the exporter_secret.
 
 
 Negotiating Token Binding
--------------------------
+=========================
 
-### Token Binding Negotiation TLS Extension
+Token Binding Negotiation TLS Extension
+---------------------------------------
 
 In TLS 1.3, the "token_binding" extension is sent by a server in
 EncryptedExtensions, whereas in previous versions of TLS this extension was sent
@@ -201,7 +196,8 @@ The behavior for the "token_binding" extension in 0-RTT is similar to that of
 ALPN and SNI: the client predicts the result of the negotiation, and if the
 actual negotiation differs, the server rejects the early data.
 
-### Indicating Use of 0-RTT Token Binding
+Indicating Use of 0-RTT Token Binding
+-------------------------------------
 
 The TLS extension "early_token_binding" (extension type TBD) is used in the TLS
 ClientHello and EncryptedExtensions to indicate use of 0-RTT Token Binding on
@@ -211,7 +207,7 @@ ticket.  In all cases, the "extension_data" field of this extension is empty, so
 the entire encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
 
 Implementation Considerations
-=========================
+=============================
 
 ### Not Implementing Token Binding on 0-RTT Connections
 
