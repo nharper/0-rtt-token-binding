@@ -107,8 +107,8 @@ continue to use the early_exporter_secret for the rest of the connection. If the
 server rejects 0-RTT data, the client must use the exporter_secret.
 
 
-Negotiating Token Binding
-=========================
+Negotiation
+===========
 
 Indicating Use of 0-RTT Token Binding
 -------------------------------------
@@ -135,7 +135,7 @@ processing rules as in {{I-D.ietf-tokbind-negotiation}}.
 Client Processing Rules
 -----------------------
 
-A client that supports Token Binding in 0-RTT data that receives a
+A client that supports Token Binding in 0-RTT data and receives a
 NewSessionTicket containing the "early_token_binding" extension must store with
 the ticket the Token Binding version and key parameter of the connection in
 which the ticket was issued.
@@ -145,7 +145,10 @@ so if the TLS connection in which the 0-RTT data is being sent is being resumed
 from a ticket which included the "early_token_binding" extension. Assuming the
 ticket included this extension, the client sends a ClientHello containing the
 "token_binding" extension, "early_data" extension, and "early_token_binding"
-extensions. The contents of the "token_binding" extension SHOULD be the same as
+extensions. The client must include in its "psk_key_exchange_modes" extension
+psk_dhe_ke.
+
+The contents of the "token_binding" extension SHOULD be the same as
 they would be on a connection without "early_token_binding" to allow for the
 client and server to negotiate new Token Binding parameters if the early data is
 rejected. The Token Binding message sent in the 0-RTT data MUST be sent
@@ -197,6 +200,9 @@ supports Token Binding in 0-RTT data, it MUST perform the following checks:
   chooses to accept early data, include in EncryptedExtensions the "early_data"
   extension, "early_token_binding" extension, and "token_binding" extension with
   the same version and key parameter from the previous connection.
+
+If a server accepts early data on a connection where "early_token_binding" was
+offered, it MUST use PSK with (EC)DHE key establishment.
 
 The "early_token_binding" extension must be present in EncryptedExtensions
 exactly when both "early_data" and "token_binding" are present.  A server that
@@ -310,27 +316,6 @@ Token Binding key proves that the client had possession at the time the TLS
 handshake finished, 0-RTT Token Binding only proves that the client had
 possession of the Token Binding key at some point after receiving the
 NewSessionTicket used for that connection.
-
-Attacks on PSK-only Key Exchange and Token Binding
---------------------------------------------------
-
-An attacker who possesses the PSK can eavesdrop on an existing connection that
-uses that PSK to obtain a TokenBindingMessage that is valid on the connection
-and then hijack the connection to send whatever attacker-controlled data it
-wishes. Because the regular exporter closes over the server random, this
-TokenBindingMessage is valid only for that connection.
-
-If the attacker does the same thing with a pure-PSK connection and 0-RTT Token
-Binding, the attacker can replay the original ClientHello and the exporter will
-stay the same, allowing the attacker to obtain a TokenBindingMessage from one
-connection and replay it on future connections. The only way for a server to
-prevent this replay is to prevent the client from ever repeating a client random
-in the handshake.
-
-If a server accepting connections with PSK-only key establishment is concerned
-about the threat of PSK theft and also implements Token Binding, then that
-server must either reject all 0-RTT token bindings, or implement some form of
-preventing reuse of a client random.
 
 Exporter Replayability
 ----------------------
