@@ -110,6 +110,16 @@ server rejects 0-RTT data, the client must use the exporter_secret.
 Negotiating Token Binding
 =========================
 
+Indicating Use of 0-RTT Token Binding
+-------------------------------------
+
+The TLS extension "early_token_binding" (extension type TBD) is used in the TLS
+ClientHello and EncryptedExtensions to indicate use of 0-RTT Token Binding on
+the current connection. It is also used in a NewSessionTicket message to
+indicate that 0-RTT Token Binding may be used on a connection resumed with that
+ticket. In all cases, the "extension_data" field of this extension is empty, so
+the entire encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
+
 Token Binding Negotiation TLS Extension
 ---------------------------------------
 
@@ -122,20 +132,13 @@ choice of Token Binding version and key parameter is up to the server based on
 what the client sent and what the server's preferences are, following the same
 processing rules as in {{I-D.ietf-tokbind-negotiation}}.
 
-When a server issues a NewSessionTicket on a connection where Token Binding was
-negotiated, and the NewSessionTicket includes an "early_data" extension
-indicating that the ticket may be used to send 0-RTT data, the server may also
-include the "early_token_binding" extension in the NewSessionTicket to indicate
-that this ticket can be used for a future connection with Token Binding in 0-RTT
-data. If the server includes the "early_token_binding" extension in the
-NewSessionTicket, the server MUST store with the ticket the Token Binding
-version and key parameter used for the connection in which the ticket was
-issued. A client that supports Token Binding in 0-RTT data that receives a
-NewSessionTicket containing the "early_token_binding" extension must also
-store with the ticket the Token Binding version and key parameter of the
-connection in which the ticket was issued. The "early_token_binding" extension
-can appear in a NewSessionTicket message only if the "early_data" extension also
-appears in that message.
+Client Processing Rules
+-----------------------
+
+A client that supports Token Binding in 0-RTT data that receives a
+NewSessionTicket containing the "early_token_binding" extension must store with
+the ticket the Token Binding version and key parameter of the connection in
+which the ticket was issued.
 
 A client that wishes to send a Token Binding message in 0-RTT data may only do
 so if the TLS connection in which the 0-RTT data is being sent is being resumed
@@ -162,11 +165,21 @@ attempting to resume a connection and is sending early data, but the client is
 not using Token Binding on this resumed connection (if the server accepts the
 early data). The presence of the "token_binding" extension is so the client can
 negotiate the use of Token Binding for this connection if the server rejects
-early data. A server's options on receiving this combination of extensions in
-the ClientHello are to 1) accept early data and continue the connection with no
-Token Binding, 2) reject early data and negotiate the use of Token Binding for
-this connection, or 3) reject early data and do not negotiate Token Binding for
-this connection.
+early data.
+
+Server Processing Rules
+-----------------------
+
+When a server issues a NewSessionTicket on a connection where Token Binding was
+negotiated, and the NewSessionTicket includes an "early_data" extension
+indicating that the ticket may be used to send 0-RTT data, the server may also
+include the "early_token_binding" extension in the NewSessionTicket to indicate
+that this ticket can be used for a future connection with Token Binding in 0-RTT
+data. If the server includes the "early_token_binding" extension in the
+NewSessionTicket, the server MUST store with the ticket the Token Binding
+version and key parameter used for the connection in which the ticket was
+issued. The "early_token_binding" extension can appear in a NewSessionTicket
+message only if the "early_data" extension also appears in that message.
 
 If a server receives a ClientHello with the "early_token_binding" extension and
 supports Token Binding in 0-RTT data, it MUST perform the following checks:
@@ -186,25 +199,24 @@ supports Token Binding in 0-RTT data, it MUST perform the following checks:
   the same version and key parameter from the previous connection.
 
 The "early_token_binding" extension must be present in EncryptedExtensions
-exactly when both "early_data" and "token_binding" are present.
+exactly when both "early_data" and "token_binding" are present.  A server that
+receives a ClientHello with "early_token_binding" cannot reject Token Binding
+and also accept early data at the same time. Said server may reject early data
+but still negotiate Token Binding.
 
-A server that receives a ClientHello with "early_token_binding" cannot reject
-Token Binding and also accept early data at the same time. Said server may
-reject early data but still negotiate Token Binding.
+A server might receive a ClientHello that includes both the "early_data" and
+"token_binding" extensions, but no "early_token_binding" extension. In this
+case, the server has three options:
+
+  1. Accept early data and continue the connection with no Token Binding,
+  2. Reject early data and negotiate the use of Token Binding for this
+     connection, or
+  3. Reject early data and do not negotiate Token Binding for this connection.
 
 The behavior for the "token_binding" extension in 0-RTT is similar to that of
 ALPN and SNI: the client predicts the result of the negotiation, and if the
 actual negotiation differs, the server rejects the early data.
 
-Indicating Use of 0-RTT Token Binding
--------------------------------------
-
-The TLS extension "early_token_binding" (extension type TBD) is used in the TLS
-ClientHello and EncryptedExtensions to indicate use of 0-RTT Token Binding on
-the current connection. It is also used in a NewSessionTicket message to
-indicate that 0-RTT Token Binding may be used on a connection resumed with that
-ticket.  In all cases, the "extension_data" field of this extension is empty, so
-the entire encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
 
 Implementation Considerations
 =============================
