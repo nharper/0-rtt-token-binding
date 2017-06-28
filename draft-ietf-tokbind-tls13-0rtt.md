@@ -227,7 +227,8 @@ actual negotiation differs, the server rejects the early data.
 Implementation Considerations
 =============================
 
-### Not Implementing Token Binding on 0-RTT Connections
+Not Implementing Token Binding on 0-RTT Connections
+---------------------------------------------------
 
 This spec has been designed so that both clients and servers can support Token
 Binding on some connections and 0-RTT data on other connections without needing
@@ -249,14 +250,16 @@ ClientHello as it would only appear if the client is not spec compliant.
 On connections where a server negotiates Token Binding, the server SHOULD NOT
 include the "early_data" extension in a NewSessionTicket.
 
-### Adding Support for Token Binding on 0-RTT Connections
+Adding Support for Token Binding on 0-RTT Connections
+-----------------------------------------------------
 
 A server that supports early data but not Token Binding may wish to add support
 for Token Binding (and Token Binding on 0-RTT connections) at a later time. For
 a client to learn that a server supports Token Binding, the server must reject
 early data to send the "token_binding" extension.
 
-### Implementation Challenges
+Implementation Challenges
+-------------------------
 
 The client has to be able to modify the message it sends in 0-RTT data if the
 0-RTT data gets rejected and needs to be retransmitted in 1-RTT data. Even if
