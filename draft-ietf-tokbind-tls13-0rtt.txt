@@ -4,8 +4,8 @@
 
 Token Binding Working Group                                    N. Harper
 Internet-Draft                                               Google Inc.
-Intended status: Standards Track                           June 27, 2017
-Expires: December 29, 2017
+Intended status: Standards Track                           June 28, 2017
+Expires: December 30, 2017
 
 
               Token Binding for 0-RTT TLS 1.3 Connections
@@ -14,11 +14,11 @@ Expires: December 29, 2017
 Abstract
 
    This document describes how Token Binding can be used in the 0-RTT
-   data of a TLS 1.3 connection.  This involves updating how Token
-   Binding negotiation works and adding a mechanism for indicating
-   whether a server prevents replay.  A TokenBindingMessage sent in
-   0-RTT data has different security properties than one sent after the
-   TLS handshake has finished, which this document also describes.
+   data of a TLS 1.3 connection.  This involves a new TLS extension to
+   negotiate and indicate the use of Token Binding in 0-RTT data.  A
+   TokenBindingMessage sent in 0-RTT data has different security
+   properties than one sent after the TLS handshake has finished, which
+   this document also describes.
 
 Status of This Memo
 
@@ -35,7 +35,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on December 29, 2017.
+   This Internet-Draft will expire on December 30, 2017.
 
 Copyright Notice
 
@@ -53,9 +53,9 @@ Copyright Notice
 
 
 
-Harper                  Expires December 29, 2017               [Page 1]
+Harper                  Expires December 30, 2017               [Page 1]
 
-Internet-Draft             0-RTT Token Binding                 June 2017
+Internet-Draft         Token Binding in 0-RTT data             June 2017
 
 
    the Trust Legal Provisions and are provided without warranty as
@@ -65,27 +65,28 @@ Table of Contents
 
    1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
      1.1.  Requirements Language . . . . . . . . . . . . . . . . . .   3
-   2.  Proposed Design . . . . . . . . . . . . . . . . . . . . . . .   3
-     2.1.  TokenBinding Signature Definition . . . . . . . . . . . .   3
-       2.1.1.  Selecting Which Exporter Secret to Use  . . . . . . .   3
-     2.2.  Negotiating Token Binding . . . . . . . . . . . . . . . .   4
-       2.2.1.  Token Binding Negotiation TLS Extension . . . . . . .   4
-       2.2.2.  Indicating Use of 0-RTT Token Binding . . . . . . . .   6
-   3.  Implementation Considerations . . . . . . . . . . . . . . . .   6
-     3.1.  Not Implementing Token Binding on 0-RTT Connections . . .   6
-       3.1.1.  Adding Support for Token Binding on 0-RTT Connections   7
-       3.1.2.  Implementation Challenges . . . . . . . . . . . . . .   7
-   4.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   7
-   5.  Security Considerations . . . . . . . . . . . . . . . . . . .   7
-     5.1.  Proof of Possession of Token Binding Key  . . . . . . . .   8
-     5.2.  Attacks on PSK-only Key Exchange and Token Binding  . . .   8
-     5.3.  Exporter Replayability  . . . . . . . . . . . . . . . . .   9
-     5.4.  Replay Mitigations  . . . . . . . . . . . . . . . . . . .   9
-       5.4.1.  Server Mitigations  . . . . . . . . . . . . . . . . .  10
-       5.4.2.  Client Mitigations  . . . . . . . . . . . . . . . . .  10
-     5.5.  Early Data Ticket Age Window  . . . . . . . . . . . . . .  10
-   6.  Acknowledgements  . . . . . . . . . . . . . . . . . . . . . .  11
-   7.  Normative References  . . . . . . . . . . . . . . . . . . . .  11
+   2.  TokenBinding Signature Definition . . . . . . . . . . . . . .   3
+     2.1.  Selecting Which Exporter Secret to Use  . . . . . . . . .   3
+   3.  Negotiating Token Binding . . . . . . . . . . . . . . . . . .   4
+     3.1.  Indicating Use of 0-RTT Token Binding . . . . . . . . . .   4
+     3.2.  Token Binding Negotiation TLS Extension . . . . . . . . .   4
+     3.3.  Client Processing Rules . . . . . . . . . . . . . . . . .   4
+     3.4.  Server Processing Rules . . . . . . . . . . . . . . . . .   5
+   4.  Implementation Considerations . . . . . . . . . . . . . . . .   6
+     4.1.  Not Implementing Token Binding on 0-RTT Connections . . .   6
+       4.1.1.  Adding Support for Token Binding on 0-RTT Connections   7
+       4.1.2.  Implementation Challenges . . . . . . . . . . . . . .   7
+   5.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   7
+   6.  Security Considerations . . . . . . . . . . . . . . . . . . .   8
+     6.1.  Proof of Possession of Token Binding Key  . . . . . . . .   8
+     6.2.  Attacks on PSK-only Key Exchange and Token Binding  . . .   8
+     6.3.  Exporter Replayability  . . . . . . . . . . . . . . . . .   9
+     6.4.  Replay Mitigations  . . . . . . . . . . . . . . . . . . .  10
+       6.4.1.  Server Mitigations  . . . . . . . . . . . . . . . . .  10
+       6.4.2.  Client Mitigations  . . . . . . . . . . . . . . . . .  10
+     6.5.  Early Data Ticket Age Window  . . . . . . . . . . . . . .  10
+   7.  Acknowledgements  . . . . . . . . . . . . . . . . . . . . . .  11
+   8.  Normative References  . . . . . . . . . . . . . . . . . . . .  11
    Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  11
 
 1.  Introduction
@@ -108,11 +109,23 @@ Table of Contents
 
 
 
-
-Harper                  Expires December 29, 2017               [Page 2]
+Harper                  Expires December 30, 2017               [Page 2]
 
-Internet-Draft             0-RTT Token Binding                 June 2017
+Internet-Draft         Token Binding in 0-RTT data             June 2017
 
+
+   Using Token Binding in 0-RTT data involves two main changes to Token
+   Binding.  The first is the use of a new TLS extension
+   "early_token_binding" to indicate whether a TLS session ticket can be
+   used with Token Binding in 0-RTT data, and to indicate whether an
+   attempted 0-RTT connection is using Token Binding in 0-RTT data.  The
+   second change is one that applies only if Token Binding in 0-RTT data
+   is in use, which changes the definition of the TokenBinding.signature
+   field to use TLS 1.3's early_exporter_secret.
+
+   If a client does not send any 0-RTT data, or if the server rejects
+   the client's 0-RTT data, then the client MUST use the 1-RTT exporter,
+   as defined in [I-D.ietf-tokbind-protocol].
 
 1.1.  Requirements Language
 
@@ -120,25 +133,7 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
    document are to be interpreted as described in [RFC2119].
 
-2.  Proposed Design
-
-   A TokenBinding struct as defined in [I-D.ietf-tokbind-protocol]
-   contains a signature of the EKM value from the TLS layer.  Under
-   normal circumstances, a TokenBinding on a TLS 1.3 connection would
-   use the exporter_secret to derive the EKM value.  When 0-RTT data is
-   assembled to be sent, the exporter_secret is not yet available.  This
-   design changes the definition of the TokenBinding.signature field to
-   use the exporter with either early_exporter_secret or
-   exporter_secret.  Since no negotiation for the connection can happen
-   before the client sends this TokenBindingMessage in 0-RTT data, this
-   document also describes how a client decides what TokenBindingMessage
-   to send in 0-RTT data and how a server should interpret that message.
-
-   If a client does not send any 0-RTT data, or if the server rejects
-   the client's 0-RTT data, then the client MUST use the 1-RTT exporter,
-   as defined in [I-D.ietf-tokbind-protocol].
-
-2.1.  TokenBinding Signature Definition
+2.  TokenBinding Signature Definition
 
    In [I-D.ietf-tokbind-protocol], the signature field of the
    TokenBinding struct is defined to be the signature of a
@@ -157,31 +152,40 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    signed uses the early_exporter_secret, and it MUST NOT be present in
    any other TokenBinding structs.
 
-2.1.1.  Selecting Which Exporter Secret to Use
+2.1.  Selecting Which Exporter Secret to Use
 
    A client which is not sending any 0-RTT data on a connection MUST use
    the exporter defined in [I-D.ietf-tls-tls13] (using exporter_secret
-
-
-
-
-Harper                  Expires December 29, 2017               [Page 3]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
    as the Secret) for all TokenBindingMessages on that connection so
    that it is compatible with [I-D.ietf-tokbind-protocol].
 
    When a client sends a TokenBindingMessage in 0-RTT data, it must use
    the early_exporter_secret.  If the server accepts the 0-RTT data, the
    client must continue to use the early_exporter_secret for the rest of
+
+
+
+Harper                  Expires December 30, 2017               [Page 3]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
    the connection.  If the server rejects 0-RTT data, the client must
    use the exporter_secret.
 
-2.2.  Negotiating Token Binding
+3.  Negotiating Token Binding
 
-2.2.1.  Token Binding Negotiation TLS Extension
+3.1.  Indicating Use of 0-RTT Token Binding
+
+   The TLS extension "early_token_binding" (extension type TBD) is used
+   in the TLS ClientHello and EncryptedExtensions to indicate use of
+   0-RTT Token Binding on the current connection.  It is also used in a
+   NewSessionTicket message to indicate that 0-RTT Token Binding may be
+   used on a connection resumed with that ticket.  In all cases, the
+   "extension_data" field of this extension is empty, so the entire
+   encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
+
+3.2.  Token Binding Negotiation TLS Extension
 
    In TLS 1.3, the "token_binding" extension is sent by a server in
    EncryptedExtensions, whereas in previous versions of TLS this
@@ -193,22 +197,12 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    and what the server's preferences are, following the same processing
    rules as in [I-D.ietf-tokbind-negotiation].
 
-   When a server issues a NewSessionTicket on a connection where Token
-   Binding was negotiated, and the NewSessionTicket includes an
-   "early_data" extension indicating that the ticket may be used to send
-   0-RTT data, the server may also include the "early_token_binding"
-   extension in the NewSessionTicket to indicate that this ticket can be
-   used for a future connection with Token Binding in 0-RTT data.  If
-   the server includes the "early_token_binding" extension in the
-   NewSessionTicket, the server MUST store with the ticket the Token
-   Binding version and key parameter used for the connection in which
-   the ticket was issued.  A client that supports Token Binding in 0-RTT
-   data that receives a NewSessionTicket containing the
-   "early_token_binding" extension must also store with the ticket the
-   Token Binding version and key parameter of the connection in which
-   the ticket was issued.  The "early_token_binding" extension can
-   appear in a NewSessionTicket message only if the "early_data"
-   extension also appears in that message.
+3.3.  Client Processing Rules
+
+   A client that supports Token Binding in 0-RTT data that receives a
+   NewSessionTicket containing the "early_token_binding" extension must
+   store with the ticket the Token Binding version and key parameter of
+   the connection in which the ticket was issued.
 
    A client that wishes to send a Token Binding message in 0-RTT data
    may only do so if the TLS connection in which the 0-RTT data is being
@@ -218,20 +212,20 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    "token_binding" extension, "early_data" extension, and
    "early_token_binding" extensions.  The contents of the
    "token_binding" extension SHOULD be the same as they would be on a
-
-
-
-Harper                  Expires December 29, 2017               [Page 4]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
    connection without "early_token_binding" to allow for the client and
    server to negotiate new Token Binding parameters if the early data is
    rejected.  The Token Binding message sent in the 0-RTT data MUST be
    sent assuming that the same Token Binding version and key parameter
    from the connection where the ticket was received will also be
    negotiated on this connection.  If the server includes the
+
+
+
+Harper                  Expires December 30, 2017               [Page 4]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
    "early_data" extension in EncryptedExtensions in response to a
    ClientHello with "early_token_binding", but the server does not
    include "early_token_binding" in EncryptedExtensions, or if the
@@ -247,11 +241,22 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    connection (if the server accepts the early data).  The presence of
    the "token_binding" extension is so the client can negotiate the use
    of Token Binding for this connection if the server rejects early
-   data.  A server's options on receiving this combination of extensions
-   in the ClientHello are to 1) accept early data and continue the
-   connection with no Token Binding, 2) reject early data and negotiate
-   the use of Token Binding for this connection, or 3) reject early data
-   and do not negotiate Token Binding for this connection.
+   data.
+
+3.4.  Server Processing Rules
+
+   When a server issues a NewSessionTicket on a connection where Token
+   Binding was negotiated, and the NewSessionTicket includes an
+   "early_data" extension indicating that the ticket may be used to send
+   0-RTT data, the server may also include the "early_token_binding"
+   extension in the NewSessionTicket to indicate that this ticket can be
+   used for a future connection with Token Binding in 0-RTT data.  If
+   the server includes the "early_token_binding" extension in the
+   NewSessionTicket, the server MUST store with the ticket the Token
+   Binding version and key parameter used for the connection in which
+   the ticket was issued.  The "early_token_binding" extension can
+   appear in a NewSessionTicket message only if the "early_data"
+   extension also appears in that message.
 
    If a server receives a ClientHello with the "early_token_binding"
    extension and supports Token Binding in 0-RTT data, it MUST perform
@@ -268,51 +273,54 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    o  Process the "token_binding" extension as if it were received on a
       1-RTT connection and compute the Token Binding version and key
       parameter to use.  If either of these values do not match the
+
+
+
+
+Harper                  Expires December 30, 2017               [Page 5]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
       values that were negotiated on the connection where the ticket
       used for resumption was sent, reject the early data.
 
    o  Perform any other checks to decide whether to accept early data.
       If the server chooses to accept early data, include in
       EncryptedExtensions the "early_data" extension,
-
-
-
-Harper                  Expires December 29, 2017               [Page 5]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
       "early_token_binding" extension, and "token_binding" extension
       with the same version and key parameter from the previous
       connection.
 
    The "early_token_binding" extension must be present in
    EncryptedExtensions exactly when both "early_data" and
-   "token_binding" are present.
+   "token_binding" are present.  A server that receives a ClientHello
+   with "early_token_binding" cannot reject Token Binding and also
+   accept early data at the same time.  Said server may reject early
+   data but still negotiate Token Binding.
 
-   A server that receives a ClientHello with "early_token_binding"
-   cannot reject Token Binding and also accept early data at the same
-   time.  Said server may reject early data but still negotiate Token
-   Binding.
+   A server might receive a ClientHello that includes both the
+   "early_data" and "token_binding" extensions, but no
+   "early_token_binding" extension.  In this case, the server has three
+   options:
+
+   1.  Accept early data and continue the connection with no Token
+       Binding,
+
+   2.  Reject early data and negotiate the use of Token Binding for this
+       connection, or
+
+   3.  Reject early data and do not negotiate Token Binding for this
+       connection.
 
    The behavior for the "token_binding" extension in 0-RTT is similar to
    that of ALPN and SNI: the client predicts the result of the
    negotiation, and if the actual negotiation differs, the server
    rejects the early data.
 
-2.2.2.  Indicating Use of 0-RTT Token Binding
+4.  Implementation Considerations
 
-   The TLS extension "early_token_binding" (extension type TBD) is used
-   in the TLS ClientHello and EncryptedExtensions to indicate use of
-   0-RTT Token Binding on the current connection.  It is also used in a
-   NewSessionTicket message to indicate that 0-RTT Token Binding may be
-   used on a connection resumed with that ticket.  In all cases, the
-   "extension_data" field of this extension is empty, so the entire
-   encoding of this extension is 0xTBD 0xTBD 0x00 0x00.
-
-3.  Implementation Considerations
-
-3.1.  Not Implementing Token Binding on 0-RTT Connections
+4.1.  Not Implementing Token Binding on 0-RTT Connections
 
    This spec has been designed so that both clients and servers can
    support Token Binding on some connections and 0-RTT data on other
@@ -322,6 +330,14 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    A client that wishes to support both without supporting Token Binding
    on 0-RTT connections can function by completely ignoring the
    "early_token_binding" TLS extension.  When resuming a connection with
+
+
+
+Harper                  Expires December 30, 2017               [Page 6]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
    early data, the client can still advertise support for Token Binding,
    providing the server the opportunity to accept early data (without
    Token Binding) or to reject early data and negotiate Token Binding.
@@ -330,14 +346,6 @@ Internet-Draft             0-RTT Token Binding                 June 2017
 
    A server can support both Token Binding and 0-RTT data without
    supporting Token Binding on 0-RTT connections by never minting
-
-
-
-Harper                  Expires December 29, 2017               [Page 6]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
    NewSessionTickets containing the "early_token_binding" extension.
    Such a server that never mints NewSessionTickets with
    "early_token_binding" can ignore that extension in a ClientHello as
@@ -345,7 +353,7 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    connections where a server negotiates Token Binding, the server
    SHOULD NOT include the "early_data" extension in a NewSessionTicket.
 
-3.1.1.  Adding Support for Token Binding on 0-RTT Connections
+4.1.1.  Adding Support for Token Binding on 0-RTT Connections
 
    A server that supports early data but not Token Binding may wish to
    add support for Token Binding (and Token Binding on 0-RTT
@@ -353,7 +361,7 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    supports Token Binding, the server must reject early data to send the
    "token_binding" extension.
 
-3.1.2.  Implementation Challenges
+4.1.2.  Implementation Challenges
 
    The client has to be able to modify the message it sends in 0-RTT
    data if the 0-RTT data gets rejected and needs to be retransmitted in
@@ -369,7 +377,7 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    [I-D.ietf-tokbind-protocol], those servers cannot share a cert and
    use HTTP2.
 
-4.  IANA Considerations
+5.  IANA Considerations
 
    This document defines a new TLS extension "early_token_binding" with
    code point TBD which needs to be added to IANA's TLS "ExtensionType
@@ -379,21 +387,20 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    which needs to be added to the IANA "Token Binding Extensions"
    registry.
 
-5.  Security Considerations
+
+
+Harper                  Expires December 30, 2017               [Page 7]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
+6.  Security Considerations
 
    Token Binding messages that use the 0-RTT exporter have weaker
    security properties than with the [RFC5705] exporter.  If either
    party of a connection using Token Binding does not wish to use 0-RTT
    token bindings, they can do so: a client can choose to never send
    0-RTT data on a connection where it uses token binding, and a server
-
-
-
-Harper                  Expires December 29, 2017               [Page 7]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
    can choose to reject any 0-RTT data sent on a connection that
    negotiated token binding.
 
@@ -406,7 +413,7 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    data, although solutions for preventing the replay of Token Binding
    might also be applicable to 0-RTT data.
 
-5.1.  Proof of Possession of Token Binding Key
+6.1.  Proof of Possession of Token Binding Key
 
    When a Token Binding signature is generated using the exporter with
    early_exporter_secret, the value being signed is under the client's
@@ -423,7 +430,7 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    the client had possession of the Token Binding key at some point
    after receiving the NewSessionTicket used for that connection.
 
-5.2.  Attacks on PSK-only Key Exchange and Token Binding
+6.2.  Attacks on PSK-only Key Exchange and Token Binding
 
    An attacker who possesses the PSK can eavesdrop on an existing
    connection that uses that PSK to obtain a TokenBindingMessage that is
@@ -435,6 +442,14 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    If the attacker does the same thing with a pure-PSK connection and
    0-RTT Token Binding, the attacker can replay the original ClientHello
    and the exporter will stay the same, allowing the attacker to obtain
+
+
+
+Harper                  Expires December 30, 2017               [Page 8]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
    a TokenBindingMessage from one connection and replay it on future
    connections.  The only way for a server to prevent this replay is to
    prevent the client from ever repeating a client random in the
@@ -442,19 +457,11 @@ Internet-Draft             0-RTT Token Binding                 June 2017
 
    If a server accepting connections with PSK-only key establishment is
    concerned about the threat of PSK theft and also implements Token
-
-
-
-Harper                  Expires December 29, 2017               [Page 8]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
    Binding, then that server must either reject all 0-RTT token
    bindings, or implement some form of preventing reuse of a client
    random.
 
-5.3.  Exporter Replayability
+6.3.  Exporter Replayability
 
    The exporter specified in [I-D.ietf-tokbind-protocol] is chosen so
    that a client and server have the same exporter value only if they
@@ -488,25 +495,25 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    TokenBindingMessage still validates when sent with different
    application data.
 
-5.4.  Replay Mitigations
+
+
+
+
+
+
+Harper                  Expires December 30, 2017               [Page 9]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
+6.4.  Replay Mitigations
 
    This section presents multiple ways that a client or server can
    mitigate the replay of a TokenBinding while still using Token Binding
    with 0-RTT data.  Note that even with replay mitigations, 0-RTT Token
    Binding is vulnerable to other attacks.
 
-
-
-
-
-
-
-Harper                  Expires December 29, 2017               [Page 9]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
-5.4.1.  Server Mitigations
+6.4.1.  Server Mitigations
 
    If a server uses a session cache instead of stateless tickets, it can
    enforce that a PSK generated for resumption can only be used once.
@@ -527,9 +534,9 @@ Internet-Draft             0-RTT Token Binding                 June 2017
 
    A server can prevent some, but not all, 0-RTT data replay with a
    tight time window for the ticket age that it will accept.  See
-   Section 5.5 for more details.
+   Section 6.5 for more details.
 
-5.4.2.  Client Mitigations
+6.4.2.  Client Mitigations
 
    A client cannot prevent a sufficiently motivated attacker from
    replaying a TokenBinding, but it can make it so difficult to replay
@@ -541,12 +548,20 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    Token Binding key) are protected strongly and virtually non-
    exportable.
 
-5.5.  Early Data Ticket Age Window
+6.5.  Early Data Ticket Age Window
 
    When an attacker with control of the PSK secret replays a
    TokenBindingMessage, it has to use the same ClientHello that the
    client used.  The ClientHello includes an "obfuscated_ticket_age" in
    its EarlyDataIndication extension, which the server can use to narrow
+
+
+
+Harper                  Expires December 30, 2017              [Page 10]
+
+Internet-Draft         Token Binding in 0-RTT data             June 2017
+
+
    the window in which that ClientHello will be accepted.  Even if a PSK
    is valid for a week, the server will only accept that particular
    ClientHello for a smaller time window based on the ticket age.  A
@@ -554,20 +569,12 @@ Internet-Draft             0-RTT Token Binding                 June 2017
    practical to limit an attacker's ability to replay a ClientHello and
    send new application data with the stolen TokenBindingMessage.
 
-
-
-
-Harper                  Expires December 29, 2017              [Page 10]
-
-Internet-Draft             0-RTT Token Binding                 June 2017
-
-
-6.  Acknowledgements
+7.  Acknowledgements
 
    The author would like to thank David Benjamin, Steven Valdez, Bill
    Cox, and Andrei Popov for their feedback and suggestions.
 
-7.  Normative References
+8.  Normative References
 
    [I-D.ietf-tls-tls13]
               Rescorla, E., "The Transport Layer Security (TLS) Protocol
@@ -606,11 +613,4 @@ Author's Address
 
 
 
-
-
-
-
-
-
-
-Harper                  Expires December 29, 2017              [Page 11]
+Harper                  Expires December 30, 2017              [Page 11]
